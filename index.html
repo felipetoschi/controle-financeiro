@@ -16,7 +16,10 @@
 <body>
   <header class="topo">
     <h1>Controle Financeiro</h1>
-    <button id="btn-instalar" class="btn btn-secundario" hidden>Instalar app</button>
+    <div class="topo-acoes">
+      <button id="btn-instalar" class="btn btn-secundario" hidden>Instalar app</button>
+      <button id="btn-conta" class="btn btn-secundario" hidden>Entrar<span class="so-tela-grande"> com Google</span></button>
+    </div>
   </header>
 
   <nav class="abas" aria-label="Seções">
@@ -55,7 +58,8 @@
 
       <div class="painel dados">
         <h3>Seus dados</h3>
-        <p class="nota">Os dados ficam salvos apenas neste aparelho. Faça backup de vez em quando e use "Importar" para levá-los a outro aparelho.</p>
+        <p id="status-nuvem" class="status" hidden></p>
+        <p id="nota-dados" class="nota">Os dados ficam salvos apenas neste aparelho. Faça backup de vez em quando e use "Importar" para levá-los a outro aparelho.</p>
         <div class="acoes">
           <button id="btn-exportar" class="btn btn-secundario">Exportar backup</button>
           <button id="btn-importar" class="btn btn-secundario">Importar backup</button>
@@ -240,5 +244,6 @@
   </dialog>
 
   <script src="app.js"></script>
+  <script type="module" src="nuvem.js"></script>
 </body>
 </html>

@@ -80,12 +80,17 @@ function carregar() {
   return normalizar({});
 }
 
-function salvar() {
+function salvarNoAparelho() {
   try {
     localStorage.setItem(CHAVE, JSON.stringify(dados));
   } catch (e) {
     alert('Não foi possível salvar os dados neste aparelho. Faça um backup para não perdê-los.');
   }
+}
+
+function salvar() {
+  salvarNoAparelho();
+  window.financas.aoSalvar?.(dados);
 }
 
 let dados = carregar();
@@ -942,7 +947,7 @@ $('#arquivo-importar').addEventListener('change', async (e) => {
     d = normalizar(JSON.parse(await arquivo.text()));
   } catch {}
   if (!d) return alert('Arquivo inválido. Escolha um backup exportado por este app.');
-  const total = d.avulsos.length + d.fixos.length + d.parcelados.length + d.dividas.length;
+  const total = window.financas.contar(d);
   if (!confirm(`Importar ${total} registro(s)? Os dados atuais deste aparelho serão substituídos.`)) return;
   dados = d;
   salvar();
@@ -1031,6 +1036,21 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker não registrado', e));
   });
 }
+
+// ---------- Ponte com a sincronização na nuvem (nuvem.js) ----------
+
+window.financas = {
+  dados: () => dados,
+  normalizar,
+  contar: (d) => d.avulsos.length + d.fixos.length + d.parcelados.length + d.dividas.length,
+  // Troca os dados pelos que vieram da nuvem (não reenvia para a nuvem).
+  substituir(d) {
+    dados = d;
+    salvarNoAparelho();
+    render();
+  },
+  aoSalvar: null, // definido por nuvem.js quando há login
+};
 
 if (!['mes', 'fixos', 'parcelados', 'dividas'].includes(abaAtual)) abaAtual = 'mes';
 render();

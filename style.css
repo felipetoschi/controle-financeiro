@@ -58,7 +58,13 @@ h1, h2, h3 { margin: 0; }
   color: var(--primaria-texto);
 }
 .topo h1 { font-size: 1.15rem; }
-.topo .btn-secundario { background: transparent; color: inherit; border-color: currentColor; }
+.topo .btn-secundario { background: transparent; color: inherit; border-color: currentColor; white-space: nowrap; }
+.topo-acoes { display: flex; gap: 8px; min-width: 0; }
+#btn-conta { max-width: 40vw; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 719px) { .so-tela-grande { display: none; } }
+.status { margin: 0 0 8px; font-weight: 600; font-size: 0.9rem; color: var(--receita); }
+.status.erro-nuvem { color: var(--alerta); }
+.status.offline { color: var(--texto-suave); }
 
 main {
   max-width: 1040px;

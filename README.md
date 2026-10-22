@@ -13,7 +13,25 @@ O app tem 4 abas:
 
 Também faz backup (exportar/importar) e exporta uma planilha CSV que abre no Excel.
 
-Os dados ficam salvos **no próprio aparelho** (no navegador). Nada é enviado para servidor nenhum. Para passar os dados de um aparelho para outro, use "Exportar backup" num e "Importar backup" no outro.
+## Onde ficam os dados
+
+- **Sem login:** os dados ficam só no aparelho (no navegador).
+- **Com login ("Entrar" com a conta Google):** os dados ficam também na sua conta, no Firebase (Firestore), e sincronizam entre todos os aparelhos em que você entrar. Funciona offline: as mudanças são enviadas quando a internet voltar.
+
+As regras do Firestore só permitem que cada conta leia e altere os próprios dados (documento `usuarios/<id da conta>`). A configuração do Firebase em `nuvem.js` não é secreta; ela só identifica o projeto.
+
+Regras usadas no Firestore:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /usuarios/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
+```
 
 ## Estrutura
 
@@ -22,6 +40,7 @@ Os dados ficam salvos **no próprio aparelho** (no navegador). Nada é enviado p
 | `index.html` | Estrutura da página |
 | `style.css` | Visual (inclui modo escuro e layout para celular/PC) |
 | `app.js` | Toda a lógica do app |
+| `nuvem.js` | Login com Google e sincronização no Firebase |
 | `sw.js` | Service worker: faz o app abrir sem internet |
 | `manifest.webmanifest` | Informações para instalar como app |
 | `icons/` | Ícones do app |
