@@ -1,7 +1,7 @@
 {
   "name": "Controle Financeiro",
   "short_name": "Finanças",
-  "description": "Controle financeiro pessoal: receitas, despesas e saldo do mês.",
+  "description": "Controle financeiro pessoal: salário, contas fixas, compras parceladas e dívidas.",
   "lang": "pt-BR",
   "start_url": "./",
   "scope": "./",

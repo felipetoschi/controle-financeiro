@@ -4,12 +4,14 @@ App simples de controle financeiro pessoal que roda em qualquer aparelho (PC, ce
 
 ## O que faz
 
-- Registra receitas e despesas com descrição, valor, categoria e data
-- Mostra o resumo do mês: receitas, despesas e saldo
-- Navega entre os meses
-- Mostra as despesas por categoria, com percentual
-- Edita e exclui transações
-- Faz backup (exportar/importar JSON) e exporta planilha CSV que abre no Excel
+O app tem 4 abas:
+
+- **Mês:** tudo que entra e sai no mês (avulsos, fixos, parcelas e dívidas), com receitas, despesas, saldo e quanto ainda falta pagar. Cada conta tem uma caixinha para marcar como paga.
+- **Fixos:** salário e contas que se repetem todo mês (energia, água, aluguel…). Aparecem sozinhos em todos os meses. Dá para mudar o valor de um mês só (ex.: a conta de luz veio diferente) ou tirar de um mês específico.
+- **Parcelados:** compras parceladas. Informe a quantidade de parcelas e o valor de cada parcela ou o total; cada parcela aparece no mês dela.
+- **Dívidas:** o que você deve, para quem e quando vence. Mostra quanto falta, quanto já foi pago, quanto pagar em cada mês e o mês em que tudo fica quitado.
+
+Também faz backup (exportar/importar) e exporta uma planilha CSV que abre no Excel.
 
 Os dados ficam salvos **no próprio aparelho** (no navegador). Nada é enviado para servidor nenhum. Para passar os dados de um aparelho para outro, use "Exportar backup" num e "Importar backup" no outro.
 

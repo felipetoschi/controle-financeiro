@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Controle Financeiro</title>
-  <meta name="description" content="Controle financeiro pessoal: receitas, despesas e saldo do mês.">
+  <meta name="description" content="Controle financeiro pessoal: salário, contas fixas, compras parceladas e dívidas.">
   <meta name="theme-color" content="#0f766e">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -19,81 +19,221 @@
     <button id="btn-instalar" class="btn btn-secundario" hidden>Instalar app</button>
   </header>
 
-  <main>
-    <nav class="mes" aria-label="Mês">
-      <button id="mes-anterior" class="btn-icone" aria-label="Mês anterior">‹</button>
-      <h2 id="mes-atual"></h2>
-      <button id="mes-seguinte" class="btn-icone" aria-label="Próximo mês">›</button>
-    </nav>
+  <nav class="abas" aria-label="Seções">
+    <button data-aba="mes" class="ativa">Mês</button>
+    <button data-aba="fixos">Fixos</button>
+    <button data-aba="parcelados">Parcelados</button>
+    <button data-aba="dividas">Dívidas</button>
+  </nav>
 
-    <section class="resumo" aria-label="Resumo do mês">
-      <div class="card">
-        <span class="rotulo">Receitas</span>
-        <strong id="total-receitas" class="valor receita"></strong>
+  <main>
+    <!-- ===== Mês ===== -->
+    <section id="aba-mes" class="aba">
+      <div class="mes">
+        <button id="mes-anterior" class="btn-icone" aria-label="Mês anterior">‹</button>
+        <h2 id="mes-atual"></h2>
+        <button id="mes-seguinte" class="btn-icone" aria-label="Próximo mês">›</button>
       </div>
-      <div class="card">
-        <span class="rotulo">Despesas</span>
-        <strong id="total-despesas" class="valor despesa"></strong>
+
+      <div class="resumo quatro">
+        <div class="card"><span class="rotulo">Receitas</span><strong id="total-receitas" class="valor receita"></strong></div>
+        <div class="card"><span class="rotulo">Despesas</span><strong id="total-despesas" class="valor despesa"></strong></div>
+        <div class="card"><span class="rotulo">Saldo do mês</span><strong id="saldo" class="valor"></strong></div>
+        <div class="card"><span class="rotulo">Falta pagar</span><strong id="falta-pagar" class="valor"></strong></div>
       </div>
-      <div class="card destaque">
-        <span class="rotulo">Saldo do mês</span>
-        <strong id="saldo" class="valor"></strong>
+
+      <div class="colunas">
+        <div class="painel">
+          <h3>Lançamentos</h3>
+          <div id="lista"></div>
+        </div>
+        <div class="painel">
+          <h3>Despesas por categoria</h3>
+          <div id="categorias"></div>
+        </div>
+      </div>
+
+      <div class="painel dados">
+        <h3>Seus dados</h3>
+        <p class="nota">Os dados ficam salvos apenas neste aparelho. Faça backup de vez em quando e use "Importar" para levá-los a outro aparelho.</p>
+        <div class="acoes">
+          <button id="btn-exportar" class="btn btn-secundario">Exportar backup</button>
+          <button id="btn-importar" class="btn btn-secundario">Importar backup</button>
+          <button id="btn-csv" class="btn btn-secundario">Exportar planilha (CSV)</button>
+          <input id="arquivo-importar" type="file" accept="application/json,.json" hidden>
+        </div>
       </div>
     </section>
 
-    <div class="colunas">
-      <section class="painel">
-        <h3>Transações</h3>
-        <div id="lista"></div>
-      </section>
+    <!-- ===== Fixos ===== -->
+    <section id="aba-fixos" class="aba" hidden>
+      <p class="intro">Salário e contas que se repetem todo mês. Eles aparecem sozinhos na aba Mês.</p>
+      <div class="resumo">
+        <div class="card"><span class="rotulo">Receitas fixas</span><strong id="fx-total-receitas" class="valor receita"></strong></div>
+        <div class="card"><span class="rotulo">Despesas fixas</span><strong id="fx-total-despesas" class="valor despesa"></strong></div>
+        <div class="card"><span class="rotulo">Sobra depois dos fixos</span><strong id="fx-sobra" class="valor"></strong></div>
+      </div>
+      <div class="colunas iguais">
+        <div class="painel"><h3>Receitas fixas</h3><div id="lista-fixos-receitas"></div></div>
+        <div class="painel"><h3>Despesas fixas</h3><div id="lista-fixos-despesas"></div></div>
+      </div>
+    </section>
 
-      <section class="painel">
-        <h3>Despesas por categoria</h3>
-        <div id="categorias"></div>
-      </section>
-    </div>
+    <!-- ===== Parcelados ===== -->
+    <section id="aba-parcelados" class="aba" hidden>
+      <p class="intro">Compras parceladas. Cada parcela aparece no mês dela, na aba Mês.</p>
+      <div class="resumo">
+        <div class="card"><span class="rotulo">Parcelas deste mês</span><strong id="pc-total-mes" class="valor despesa"></strong></div>
+        <div class="card"><span class="rotulo">Ainda falta pagar</span><strong id="pc-total-restante" class="valor"></strong></div>
+        <div class="card"><span class="rotulo">Última parcela</span><strong id="pc-fim" class="valor"></strong></div>
+      </div>
+      <div class="painel"><h3>Compras</h3><div id="lista-parcelados"></div></div>
+    </section>
 
-    <section class="painel dados">
-      <h3>Seus dados</h3>
-      <p class="nota">Os dados ficam salvos apenas neste aparelho. Faça backup de vez em quando e use "Importar" para levá-los a outro aparelho.</p>
-      <div class="acoes">
-        <button id="btn-exportar" class="btn btn-secundario">Exportar backup</button>
-        <button id="btn-importar" class="btn btn-secundario">Importar backup</button>
-        <button id="btn-csv" class="btn btn-secundario">Exportar planilha (CSV)</button>
-        <input id="arquivo-importar" type="file" accept="application/json,.json" hidden>
+    <!-- ===== Dívidas ===== -->
+    <section id="aba-dividas" class="aba" hidden>
+      <p class="intro">Suas dívidas, para quem e quando vence. As parcelas também aparecem na aba Mês.</p>
+      <div class="resumo">
+        <div class="card"><span class="rotulo">Total que falta pagar</span><strong id="dv-total-restante" class="valor despesa"></strong></div>
+        <div class="card"><span class="rotulo">Já pago</span><strong id="dv-total-pago" class="valor receita"></strong></div>
+        <div class="card"><span class="rotulo">Tudo quitado em</span><strong id="dv-quitacao" class="valor"></strong></div>
+      </div>
+      <div class="colunas">
+        <div class="painel"><h3>Dívidas</h3><div id="lista-dividas"></div></div>
+        <div class="painel"><h3>Quanto pagar em cada mês</h3><div id="dv-por-mes"></div></div>
       </div>
     </section>
   </main>
 
-  <button id="btn-nova" class="fab" aria-label="Nova transação">+</button>
+  <button id="btn-nova" class="fab" aria-label="Adicionar">+</button>
 
-  <dialog id="dialogo">
-    <form id="form" method="dialog">
-      <h3 id="form-titulo">Nova transação</h3>
-      <input type="hidden" id="tx-id">
+  <!-- ===== Escolher o que adicionar ===== -->
+  <dialog id="dlg-novo">
+    <h3>Adicionar</h3>
+    <div class="opcoes">
+      <button class="opcao" data-novo="avulso"><strong>Receita ou despesa avulsa</strong><span>Renda extra, mercado, compra à vista…</span></button>
+      <button class="opcao" data-novo="fixo"><strong>Fixo mensal</strong><span>Salário, energia, água, internet…</span></button>
+      <button class="opcao" data-novo="parcelado"><strong>Compra parcelada</strong><span>Algo pago em várias parcelas</span></button>
+      <button class="opcao" data-novo="divida"><strong>Dívida</strong><span>Algo que você deve e precisa pagar</span></button>
+    </div>
+    <div class="form-acoes"><button type="button" class="btn btn-secundario fechar">Cancelar</button></div>
+  </dialog>
 
-      <div class="tipo" role="radiogroup" aria-label="Tipo">
-        <label><input type="radio" name="tipo" value="despesa" checked><span>Despesa</span></label>
-        <label><input type="radio" name="tipo" value="receita"><span>Receita</span></label>
+  <!-- ===== Avulso ===== -->
+  <dialog id="dlg-avulso">
+    <form method="dialog">
+      <h3 id="av-titulo">Novo lançamento</h3>
+      <div class="segmentado tipo" role="radiogroup" aria-label="Tipo">
+        <label><input type="radio" name="av-tipo" value="despesa" checked><span>Despesa</span></label>
+        <label><input type="radio" name="av-tipo" value="receita"><span>Receita</span></label>
       </div>
-
-      <label class="campo">Descrição
-        <input id="tx-descricao" type="text" required maxlength="80" autocomplete="off" placeholder="Ex.: Supermercado">
-      </label>
-      <label class="campo">Valor (R$)
-        <input id="tx-valor" type="text" inputmode="decimal" required autocomplete="off" placeholder="0,00">
-      </label>
-      <label class="campo">Categoria
-        <select id="tx-categoria" required></select>
-      </label>
-      <label class="campo">Data
-        <input id="tx-data" type="date" required>
-      </label>
-
-      <p id="form-erro" class="erro" hidden></p>
-
+      <label class="campo">Descrição<input id="av-descricao" type="text" required maxlength="80" autocomplete="off" placeholder="Ex.: Supermercado"></label>
+      <label class="campo">Valor (R$)<input id="av-valor" type="text" inputmode="decimal" required autocomplete="off" placeholder="0,00"></label>
+      <label class="campo">Categoria<select id="av-categoria"></select></label>
+      <label class="campo">Data<input id="av-data" type="date" required></label>
+      <p id="av-erro" class="erro" hidden></p>
       <div class="form-acoes">
-        <button type="button" id="btn-cancelar" class="btn btn-secundario">Cancelar</button>
+        <button type="button" id="av-excluir" class="btn btn-perigo">Excluir</button>
+        <button type="button" class="btn btn-secundario fechar">Cancelar</button>
+        <button type="submit" class="btn">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Fixo ===== -->
+  <dialog id="dlg-fixo">
+    <form method="dialog">
+      <h3 id="fx-titulo">Novo fixo mensal</h3>
+      <div class="segmentado tipo" role="radiogroup" aria-label="Tipo">
+        <label><input type="radio" name="fx-tipo" value="despesa" checked><span>Despesa</span></label>
+        <label><input type="radio" name="fx-tipo" value="receita"><span>Receita</span></label>
+      </div>
+      <label class="campo">Descrição<input id="fx-descricao" type="text" required maxlength="80" autocomplete="off" placeholder="Ex.: Conta de energia"></label>
+      <label class="campo">Valor por mês (R$)<input id="fx-valor" type="text" inputmode="decimal" required autocomplete="off" placeholder="0,00"></label>
+      <label class="campo">Categoria<select id="fx-categoria"></select></label>
+      <label class="campo">Primeiro vencimento ou recebimento<input id="fx-inicio" type="date" required>
+        <small>Repete todo mês neste mesmo dia.</small></label>
+      <label class="campo">Último mês (opcional)<input id="fx-fim" type="date">
+        <small>Deixe vazio se não tiver data para acabar.</small></label>
+      <p id="fx-nota" class="nota" hidden></p>
+      <p id="fx-erro" class="erro" hidden></p>
+      <div class="form-acoes">
+        <button type="button" id="fx-excluir" class="btn btn-perigo">Excluir</button>
+        <button type="button" class="btn btn-secundario fechar">Cancelar</button>
+        <button type="submit" class="btn">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Um mês de um fixo ===== -->
+  <dialog id="dlg-ocorrencia">
+    <form method="dialog">
+      <h3 id="oc-titulo"></h3>
+      <label class="campo">Valor neste mês (R$)<input id="oc-valor" type="text" inputmode="decimal" required autocomplete="off"></label>
+      <p id="oc-nota" class="nota"></p>
+      <p id="oc-erro" class="erro" hidden></p>
+      <div class="acoes">
+        <button type="button" id="oc-editar" class="btn btn-secundario">Editar o fixo (todos os meses)</button>
+        <button type="button" id="oc-pular" class="btn btn-secundario">Não teve neste mês</button>
+      </div>
+      <div class="form-acoes">
+        <button type="button" class="btn btn-secundario fechar">Cancelar</button>
+        <button type="submit" class="btn">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Parcelado ===== -->
+  <dialog id="dlg-parcelado">
+    <form method="dialog">
+      <h3 id="pc-titulo">Nova compra parcelada</h3>
+      <label class="campo">Descrição<input id="pc-descricao" type="text" required maxlength="80" autocomplete="off" placeholder="Ex.: Geladeira"></label>
+      <label class="campo">Categoria<select id="pc-categoria"></select></label>
+      <label class="campo">Quantidade de parcelas<input id="pc-parcelas" type="number" inputmode="numeric" min="1" max="600" required placeholder="Ex.: 10"></label>
+      <div class="campo">
+        <span>Valor informado</span>
+        <div class="segmentado" role="radiogroup" aria-label="Valor informado">
+          <label><input type="radio" name="pc-modo" value="parcela" checked><span>De cada parcela</span></label>
+          <label><input type="radio" name="pc-modo" value="total"><span>Total da compra</span></label>
+        </div>
+        <input id="pc-valor" type="text" inputmode="decimal" required autocomplete="off" placeholder="0,00" aria-label="Valor (R$)">
+      </div>
+      <label class="campo">Data da primeira parcela<input id="pc-inicio" type="date" required></label>
+      <p id="pc-previa" class="previa"></p>
+      <p id="pc-erro" class="erro" hidden></p>
+      <div class="form-acoes">
+        <button type="button" id="pc-excluir" class="btn btn-perigo">Excluir</button>
+        <button type="button" class="btn btn-secundario fechar">Cancelar</button>
+        <button type="submit" class="btn">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Dívida ===== -->
+  <dialog id="dlg-divida">
+    <form method="dialog">
+      <h3 id="dv-titulo">Nova dívida</h3>
+      <label class="campo">O que é<input id="dv-descricao" type="text" required maxlength="80" autocomplete="off" placeholder="Ex.: Empréstimo"></label>
+      <label class="campo">Para quem (opcional)<input id="dv-credor" type="text" maxlength="80" autocomplete="off" placeholder="Ex.: Banco, João…"></label>
+      <label class="campo">Quantidade de parcelas<input id="dv-parcelas" type="number" inputmode="numeric" min="1" max="600" required value="1">
+        <small>Use 1 se for pagar tudo de uma vez.</small></label>
+      <div class="campo">
+        <span>Valor informado</span>
+        <div class="segmentado" role="radiogroup" aria-label="Valor informado">
+          <label><input type="radio" name="dv-modo" value="parcela" checked><span>De cada parcela</span></label>
+          <label><input type="radio" name="dv-modo" value="total"><span>Total da dívida</span></label>
+        </div>
+        <input id="dv-valor" type="text" inputmode="decimal" required autocomplete="off" placeholder="0,00" aria-label="Valor (R$)">
+      </div>
+      <label class="campo">Primeiro vencimento<input id="dv-inicio" type="date" required>
+        <small>As outras parcelas vencem no mesmo dia dos meses seguintes.</small></label>
+      <label class="campo">Parcelas já pagas<input id="dv-pagas" type="number" inputmode="numeric" min="0" value="0"></label>
+      <label class="campo">Observação (opcional)<input id="dv-obs" type="text" maxlength="140" autocomplete="off"></label>
+      <p id="dv-previa" class="previa"></p>
+      <p id="dv-erro" class="erro" hidden></p>
+      <div class="form-acoes">
+        <button type="button" id="dv-excluir" class="btn btn-perigo">Excluir</button>
+        <button type="button" class="btn btn-secundario fechar">Cancelar</button>
         <button type="submit" class="btn">Salvar</button>
       </div>
     </form>

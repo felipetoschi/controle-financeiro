@@ -1,6 +1,6 @@
 // Service worker: guarda os arquivos do app para ele abrir mesmo sem internet.
 // Ao alterar qualquer arquivo do app, aumente o número da versão abaixo.
-const CACHE = 'controle-financeiro-v1';
+const CACHE = 'controle-financeiro-v2';
 
 const ARQUIVOS = [
   './',
@@ -15,7 +15,9 @@ const ARQUIVOS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARQUIVOS)).then(() => self.skipWaiting()));
+  // cache: 'reload' evita pegar versões antigas guardadas pelo navegador.
+  const pedidos = ARQUIVOS.map((url) => new Request(url, { cache: 'reload' }));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(pedidos)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
