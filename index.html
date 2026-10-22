@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Controle Financeiro</title>
+  <meta name="description" content="Controle financeiro pessoal: receitas, despesas e saldo do mês.">
+  <meta name="theme-color" content="#0f766e">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Finanças">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topo">
+    <h1>Controle Financeiro</h1>
+    <button id="btn-instalar" class="btn btn-secundario" hidden>Instalar app</button>
+  </header>
+
+  <main>
+    <nav class="mes" aria-label="Mês">
+      <button id="mes-anterior" class="btn-icone" aria-label="Mês anterior">‹</button>
+      <h2 id="mes-atual"></h2>
+      <button id="mes-seguinte" class="btn-icone" aria-label="Próximo mês">›</button>
+    </nav>
+
+    <section class="resumo" aria-label="Resumo do mês">
+      <div class="card">
+        <span class="rotulo">Receitas</span>
+        <strong id="total-receitas" class="valor receita"></strong>
+      </div>
+      <div class="card">
+        <span class="rotulo">Despesas</span>
+        <strong id="total-despesas" class="valor despesa"></strong>
+      </div>
+      <div class="card destaque">
+        <span class="rotulo">Saldo do mês</span>
+        <strong id="saldo" class="valor"></strong>
+      </div>
+    </section>
+
+    <div class="colunas">
+      <section class="painel">
+        <h3>Transações</h3>
+        <div id="lista"></div>
+      </section>
+
+      <section class="painel">
+        <h3>Despesas por categoria</h3>
+        <div id="categorias"></div>
+      </section>
+    </div>
+
+    <section class="painel dados">
+      <h3>Seus dados</h3>
+      <p class="nota">Os dados ficam salvos apenas neste aparelho. Faça backup de vez em quando e use "Importar" para levá-los a outro aparelho.</p>
+      <div class="acoes">
+        <button id="btn-exportar" class="btn btn-secundario">Exportar backup</button>
+        <button id="btn-importar" class="btn btn-secundario">Importar backup</button>
+        <button id="btn-csv" class="btn btn-secundario">Exportar planilha (CSV)</button>
+        <input id="arquivo-importar" type="file" accept="application/json,.json" hidden>
+      </div>
+    </section>
+  </main>
+
+  <button id="btn-nova" class="fab" aria-label="Nova transação">+</button>
+
+  <dialog id="dialogo">
+    <form id="form" method="dialog">
+      <h3 id="form-titulo">Nova transação</h3>
+      <input type="hidden" id="tx-id">
+
+      <div class="tipo" role="radiogroup" aria-label="Tipo">
+        <label><input type="radio" name="tipo" value="despesa" checked><span>Despesa</span></label>
+        <label><input type="radio" name="tipo" value="receita"><span>Receita</span></label>
+      </div>
+
+      <label class="campo">Descrição
+        <input id="tx-descricao" type="text" required maxlength="80" autocomplete="off" placeholder="Ex.: Supermercado">
+      </label>
+      <label class="campo">Valor (R$)
+        <input id="tx-valor" type="text" inputmode="decimal" required autocomplete="off" placeholder="0,00">
+      </label>
+      <label class="campo">Categoria
+        <select id="tx-categoria" required></select>
+      </label>
+      <label class="campo">Data
+        <input id="tx-data" type="date" required>
+      </label>
+
+      <p id="form-erro" class="erro" hidden></p>
+
+      <div class="form-acoes">
+        <button type="button" id="btn-cancelar" class="btn btn-secundario">Cancelar</button>
+        <button type="submit" class="btn">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
