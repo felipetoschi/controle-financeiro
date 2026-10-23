@@ -76,4 +76,7 @@ No plano gratuito do GitHub, o Pages só funciona com repositório **público**.
 
 ## Ao alterar o código
 
-Depois de mudar qualquer arquivo, aumente a versão em `sw.js` (`controle-financeiro-v4` → `v5`) para os aparelhos baixarem a nova versão.
+Depois de mudar qualquer arquivo:
+
+1. Em `app.js`, aumente `VERSAO.numero` e coloque a data e a hora da mudança (horário de Brasília). Ela aparece no topo do app, então dá para conferir em cada aparelho se a versão nova já chegou.
+2. Em `sw.js`, use o mesmo número em `CACHE` (ex.: `controle-financeiro-v5` → `v6`) para os aparelhos baixarem a nova versão.

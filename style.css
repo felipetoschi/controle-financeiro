@@ -58,6 +58,8 @@ h1, h2, h3 { margin: 0; }
   color: var(--primaria-texto);
 }
 .topo h1 { font-size: 1.15rem; }
+.marca { display: flex; flex-direction: column; min-width: 0; }
+.versao { font-size: 0.75rem; opacity: 0.8; font-variant-numeric: tabular-nums; }
 .topo .btn-secundario { background: transparent; color: inherit; border-color: currentColor; white-space: nowrap; }
 .topo-acoes { display: flex; gap: 8px; min-width: 0; }
 #btn-conta { max-width: 40vw; overflow: hidden; text-overflow: ellipsis; }
