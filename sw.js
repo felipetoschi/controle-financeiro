@@ -1,6 +1,6 @@
 // Service worker: guarda os arquivos do app para ele abrir mesmo sem internet.
 // Ao alterar qualquer arquivo do app, aumente o número da versão abaixo.
-const CACHE = 'controle-financeiro-v3';
+const CACHE = 'controle-financeiro-v4';
 
 const ARQUIVOS = [
   './',

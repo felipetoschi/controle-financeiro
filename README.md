@@ -4,12 +4,15 @@ App simples de controle financeiro pessoal que roda em qualquer aparelho (PC, ce
 
 ## O que faz
 
-O app tem 4 abas:
+O app tem 5 abas:
 
-- **Mês:** tudo que entra e sai no mês (avulsos, fixos, parcelas e dívidas), com receitas, despesas, saldo e quanto ainda falta pagar. Cada conta tem uma caixinha para marcar como paga.
-- **Fixos:** salário e contas que se repetem todo mês (energia, água, aluguel…). Aparecem sozinhos em todos os meses. Dá para mudar o valor de um mês só (ex.: a conta de luz veio diferente) ou tirar de um mês específico.
-- **Parcelados:** compras parceladas. Informe a quantidade de parcelas e o valor de cada parcela ou o total; cada parcela aparece no mês dela.
+- **Mês:** tudo que entra e sai no mês (avulsos, fixos, faturas de cartão e dívidas), com receitas, despesas, saldo e quanto ainda falta pagar. No topo, **Para pagar** mostra o que está atrasado ou vence nos próximos 7 dias. Cada conta tem uma caixinha para marcar como paga; a fatura do cartão aparece numa linha só (toque em "Ver" para ver as compras).
+- **Futuro:** quanto entra, sai e sobra em cada um dos próximos 12 ou 24 meses, quanto você junta no período e, em **Quando sobra mais**, o mês em que cada compra ou dívida termina e quanto passa a sobrar a partir dele.
+- **Fixos:** salário e contas que se repetem: todo mês ou só em alguns meses (IPTU, 13º, férias…). Dá para mudar o valor de um mês só ou tirar de um mês específico.
+- **Cartões:** cada cartão com o dia de fechamento e de vencimento, as próximas faturas e as compras. Informe a data da compra e o app coloca cada parcela na fatura certa. Compras sem cartão (carnê, boleto) também ficam aqui.
 - **Dívidas:** o que você deve, para quem e quando vence. Mostra quanto falta, quanto já foi pago, quanto pagar em cada mês e o mês em que tudo fica quitado.
+
+Ao digitar uma descrição, o app sugere descrições já usadas e escolhe a categoria sozinho.
 
 Também faz backup (exportar/importar) e exporta uma planilha CSV que abre no Excel.
 
@@ -73,4 +76,4 @@ No plano gratuito do GitHub, o Pages só funciona com repositório **público**.
 
 ## Ao alterar o código
 
-Depois de mudar qualquer arquivo, aumente a versão em `sw.js` (`controle-financeiro-v1` → `v2`) para os aparelhos baixarem a nova versão.
+Depois de mudar qualquer arquivo, aumente a versão em `sw.js` (`controle-financeiro-v4` → `v5`) para os aparelhos baixarem a nova versão.
