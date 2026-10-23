@@ -24,8 +24,9 @@
 
   <nav class="abas" aria-label="Seções">
     <button data-aba="mes" class="ativa">Mês</button>
+    <button data-aba="futuro">Futuro</button>
     <button data-aba="fixos">Fixos</button>
-    <button data-aba="parcelados">Parcelados</button>
+    <button data-aba="parcelados">Cartões</button>
     <button data-aba="dividas">Dívidas</button>
   </nav>
 
@@ -43,6 +44,11 @@
         <div class="card"><span class="rotulo">Despesas</span><strong id="total-despesas" class="valor despesa"></strong></div>
         <div class="card"><span class="rotulo">Saldo do mês</span><strong id="saldo" class="valor"></strong></div>
         <div class="card"><span class="rotulo">Falta pagar</span><strong id="falta-pagar" class="valor"></strong></div>
+      </div>
+
+      <div id="para-pagar" class="painel aviso" hidden>
+        <h3 id="para-pagar-titulo">Para pagar</h3>
+        <div id="lista-para-pagar"></div>
       </div>
 
       <div class="colunas">
@@ -69,9 +75,29 @@
       </div>
     </section>
 
+    <!-- ===== Futuro ===== -->
+    <section id="aba-futuro" class="aba" hidden>
+      <div class="resumo">
+        <div class="card"><span class="rotulo">Sobra este mês</span><strong id="ft-sobra-hoje" class="valor"></strong></div>
+        <div class="card"><span id="ft-rotulo-fim" class="rotulo">Sobra daqui a um ano</span><strong id="ft-sobra-fim" class="valor"></strong></div>
+        <div class="card"><span id="ft-rotulo-acumulado" class="rotulo">Juntando tudo</span><strong id="ft-acumulado" class="valor"></strong></div>
+      </div>
+      <div class="colunas">
+        <div class="painel">
+          <h3>Mês a mês</h3>
+          <div id="ft-meses"></div>
+          <button id="ft-mais" type="button" class="btn btn-secundario largo"></button>
+        </div>
+        <div class="painel">
+          <h3>Quando sobra mais</h3>
+          <div id="ft-folgas"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== Fixos ===== -->
     <section id="aba-fixos" class="aba" hidden>
-      <p class="intro">Salário e contas que se repetem todo mês. Eles aparecem sozinhos na aba Mês.</p>
+      <p class="intro">Salário e contas que se repetem: todo mês ou só em alguns meses (IPTU, 13º, férias…).</p>
       <div class="resumo">
         <div class="card"><span class="rotulo">Receitas fixas</span><strong id="fx-total-receitas" class="valor receita"></strong></div>
         <div class="card"><span class="rotulo">Despesas fixas</span><strong id="fx-total-despesas" class="valor despesa"></strong></div>
@@ -85,13 +111,12 @@
 
     <!-- ===== Parcelados ===== -->
     <section id="aba-parcelados" class="aba" hidden>
-      <p class="intro">Compras parceladas. Cada parcela aparece no mês dela, na aba Mês.</p>
       <div class="resumo">
         <div class="card"><span class="rotulo">Parcelas deste mês</span><strong id="pc-total-mes" class="valor despesa"></strong></div>
         <div class="card"><span class="rotulo">Ainda falta pagar</span><strong id="pc-total-restante" class="valor"></strong></div>
         <div class="card"><span class="rotulo">Última parcela</span><strong id="pc-fim" class="valor"></strong></div>
       </div>
-      <div class="painel"><h3>Compras</h3><div id="lista-parcelados"></div></div>
+      <div id="lista-cartoes" class="pilha"></div>
     </section>
 
     <!-- ===== Dívidas ===== -->
@@ -115,9 +140,9 @@
   <dialog id="dlg-novo">
     <h3>Adicionar</h3>
     <div class="opcoes">
-      <button class="opcao" data-novo="avulso"><strong>Receita ou despesa avulsa</strong><span>Renda extra, mercado, compra à vista…</span></button>
-      <button class="opcao" data-novo="fixo"><strong>Fixo mensal</strong><span>Salário, energia, água, internet…</span></button>
-      <button class="opcao" data-novo="parcelado"><strong>Compra parcelada</strong><span>Algo pago em várias parcelas</span></button>
+      <button class="opcao" data-novo="avulso"><strong>Gasto ou entrada avulsa</strong><span>Mercado, farmácia, um bico…</span></button>
+      <button class="opcao" data-novo="fixo"><strong>Conta fixa ou salário</strong><span>Energia, internet, IPTU, 13º…</span></button>
+      <button class="opcao" data-novo="parcelado"><strong>Compra no cartão</strong><span>À vista ou parcelada</span></button>
       <button class="opcao" data-novo="divida"><strong>Dívida</strong><span>Algo que você deve e precisa pagar</span></button>
     </div>
     <div class="form-acoes"><button type="button" class="btn btn-secundario fechar">Cancelar</button></div>
@@ -131,7 +156,7 @@
         <label><input type="radio" name="av-tipo" value="despesa" checked><span>Despesa</span></label>
         <label><input type="radio" name="av-tipo" value="receita"><span>Receita</span></label>
       </div>
-      <label class="campo">Descrição<input id="av-descricao" type="text" required maxlength="80" autocomplete="off" placeholder="Ex.: Supermercado"></label>
+      <label class="campo">Descrição<input id="av-descricao" type="text" required maxlength="80" autocomplete="off" list="sug-av" placeholder="Ex.: Supermercado"></label>
       <label class="campo">Valor (R$)<input id="av-valor" type="text" inputmode="decimal" required autocomplete="off" placeholder="0,00"></label>
       <label class="campo">Categoria<select id="av-categoria"></select></label>
       <label class="campo">Data<input id="av-data" type="date" required></label>
@@ -147,16 +172,19 @@
   <!-- ===== Fixo ===== -->
   <dialog id="dlg-fixo">
     <form method="dialog">
-      <h3 id="fx-titulo">Novo fixo mensal</h3>
+      <h3 id="fx-titulo">Nova conta fixa</h3>
       <div class="segmentado tipo" role="radiogroup" aria-label="Tipo">
         <label><input type="radio" name="fx-tipo" value="despesa" checked><span>Despesa</span></label>
         <label><input type="radio" name="fx-tipo" value="receita"><span>Receita</span></label>
       </div>
-      <label class="campo">Descrição<input id="fx-descricao" type="text" required maxlength="80" autocomplete="off" placeholder="Ex.: Conta de energia"></label>
-      <label class="campo">Valor por mês (R$)<input id="fx-valor" type="text" inputmode="decimal" required autocomplete="off" placeholder="0,00"></label>
+      <label class="campo">Descrição<input id="fx-descricao" type="text" required maxlength="80" autocomplete="off" list="sug-fx" placeholder="Ex.: Conta de energia"></label>
+      <label class="campo">Valor (R$)<input id="fx-valor" type="text" inputmode="decimal" required autocomplete="off" placeholder="0,00"></label>
       <label class="campo">Categoria<select id="fx-categoria"></select></label>
-      <label class="campo">Primeiro vencimento ou recebimento<input id="fx-inicio" type="date" required>
-        <small>Repete todo mês neste mesmo dia.</small></label>
+      <label class="campo">Primeiro vencimento ou recebimento<input id="fx-inicio" type="date" required></label>
+      <div class="campo">
+        <span>Repete em <small id="fx-repete"></small></span>
+        <div id="fx-meses" class="meses" role="group" aria-label="Meses em que acontece"></div>
+      </div>
       <label class="campo">Último mês (opcional)<input id="fx-fim" type="date">
         <small>Deixe vazio se não tiver data para acabar.</small></label>
       <p id="fx-nota" class="nota" hidden></p>
@@ -190,10 +218,11 @@
   <!-- ===== Parcelado ===== -->
   <dialog id="dlg-parcelado">
     <form method="dialog">
-      <h3 id="pc-titulo">Nova compra parcelada</h3>
-      <label class="campo">Descrição<input id="pc-descricao" type="text" required maxlength="80" autocomplete="off" placeholder="Ex.: Geladeira"></label>
+      <h3 id="pc-titulo">Nova compra</h3>
+      <label class="campo">Cartão<select id="pc-cartao"></select></label>
+      <label class="campo">Descrição<input id="pc-descricao" type="text" required maxlength="80" autocomplete="off" list="sug-pc" placeholder="Ex.: Geladeira"></label>
       <label class="campo">Categoria<select id="pc-categoria"></select></label>
-      <label class="campo">Quantidade de parcelas<input id="pc-parcelas" type="number" inputmode="numeric" min="1" max="600" required placeholder="Ex.: 10"></label>
+      <label class="campo">Parcelas<input id="pc-parcelas" type="number" inputmode="numeric" min="1" max="600" required placeholder="Ex.: 10"></label>
       <div class="campo">
         <span>Valor informado</span>
         <div class="segmentado" role="radiogroup" aria-label="Valor informado">
@@ -202,7 +231,7 @@
         </div>
         <input id="pc-valor" type="text" inputmode="decimal" required autocomplete="off" placeholder="0,00" aria-label="Valor (R$)">
       </div>
-      <label class="campo">Data da primeira parcela<input id="pc-inicio" type="date" required></label>
+      <label class="campo"><span id="pc-rotulo-data">Data da primeira parcela</span><input id="pc-inicio" type="date" required></label>
       <p id="pc-previa" class="previa"></p>
       <p id="pc-erro" class="erro" hidden></p>
       <div class="form-acoes">
@@ -242,6 +271,33 @@
       </div>
     </form>
   </dialog>
+
+  <!-- ===== Cartão ===== -->
+  <dialog id="dlg-cartao">
+    <form method="dialog">
+      <h3 id="ct-titulo">Novo cartão</h3>
+      <label class="campo">Nome<input id="ct-nome" type="text" required maxlength="40" autocomplete="off" list="sug-ct" placeholder="Ex.: Nubank"></label>
+      <div class="dupla">
+        <label class="campo">Vence dia<input id="ct-vencimento" type="number" inputmode="numeric" min="1" max="31" required placeholder="10"></label>
+        <label class="campo">Fecha dia<input id="ct-fechamento" type="number" inputmode="numeric" min="1" max="31" required placeholder="3"></label>
+      </div>
+      <p id="ct-previa" class="previa"></p>
+      <p id="ct-erro" class="erro" hidden></p>
+      <div class="form-acoes">
+        <button type="button" id="ct-excluir" class="btn btn-perigo">Excluir</button>
+        <button type="button" class="btn btn-secundario fechar">Cancelar</button>
+        <button type="submit" class="btn">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <datalist id="sug-av"></datalist>
+  <datalist id="sug-fx"></datalist>
+  <datalist id="sug-pc"></datalist>
+  <datalist id="sug-ct">
+    <option value="Nubank"><option value="Itaú"><option value="Bradesco"><option value="Banco do Brasil"><option value="Caixa">
+    <option value="Santander"><option value="Inter"><option value="C6"><option value="Mercado Pago"><option value="PicPay">
+  </datalist>
 
   <script src="app.js"></script>
   <script type="module" src="nuvem.js"></script>

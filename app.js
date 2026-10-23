@@ -10,6 +10,23 @@ const CATEGORIAS_PADRAO = {
   despesa: ['Moradia', 'Energia', 'Água', 'Internet e telefone', 'Alimentação', 'Transporte', 'Saúde', 'Educação', 'Lazer', 'Assinaturas', 'Compras', 'Outros'],
 };
 const CATEGORIA_DIVIDA = 'Dívidas';
+const DIA_MS = 86400000;
+
+// Palavras que sugerem a categoria ao digitar a descrição.
+const PALAVRAS_CATEGORIA = [
+  [/sal[aá]rio|vencimento|subs[ií]dio|13|d[eé]cimo|f[eé]rias/i, 'Salário'],
+  [/bico|extra|freela|venda/i, 'Renda extra'],
+  [/energia|luz|enel|cemig|copel|celesc|light|coelba|equatorial/i, 'Energia'],
+  [/[aá]gua|saneamento|sabesp|copasa|esgoto/i, 'Água'],
+  [/internet|celular|telefone|vivo|claro|tim\b|oi\b|fibra/i, 'Internet e telefone'],
+  [/aluguel|condom[ií]nio|iptu|g[aá]s|reforma|m[oó]vel|casa/i, 'Moradia'],
+  [/mercado|supermercado|feira|padaria|a[cç]ougue|ifood|restaurante|lanche|comida/i, 'Alimentação'],
+  [/uber|99|gasolina|combust[ií]vel|[oô]nibus|metr[oô]|ipva|carro|moto|estacionamento|ped[aá]gio|seguro auto/i, 'Transporte'],
+  [/farm[aá]cia|rem[eé]dio|m[eé]dico|plano de sa[uú]de|unimed|dentista|exame|academia/i, 'Saúde'],
+  [/escola|faculdade|curso|livro|mensalidade/i, 'Educação'],
+  [/netflix|spotify|prime|disney|hbo|max\b|youtube|globoplay|icloud|google one|assinatura/i, 'Assinaturas'],
+  [/cinema|viagem|bar\b|show|passeio|jogo/i, 'Lazer'],
+];
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const TIPOS = new Set(['receita', 'despesa']);
@@ -26,7 +43,10 @@ const $ = (seletor) => document.querySelector(seletor);
 //
 // avulsos:    lançamentos de um dia só            { id, tipo, descricao, categoria, centavos, data }
 // fixos:      repetem todo mês                     { id, tipo, descricao, categoria, centavos, dia, inicio, fim, ajustes, pulados }
-// parcelados: compras em N parcelas (despesa)      { id, descricao, categoria, total, parcelas, inicio, dia }
+// fixos.meses (opcional): meses do ano em que acontece (1–12), ex.: IPTU [2..11]; sem ele, todo mês
+// cartoes:    cartões de crédito                   { id, nome, fechamento, vencimento }
+// parcelados: compras em N parcelas (despesa)      { id, descricao, categoria, total, parcelas, inicio, dia, cartao?, compra? }
+//             com cartão, inicio/dia vêm da fatura em que a compra cai (calculados a partir de `compra`)
 // dividas:    dívidas em N parcelas                { id, descricao, credor, obs, total, parcelas, inicio, dia }
 // pagos:      { "<f|p|d>:<id>:<AAAA-MM>": true } marca o que já foi pago/recebido em cada mês
 // Meses são "AAAA-MM", datas "AAAA-MM-DD" e valores em centavos (inteiros).
@@ -50,6 +70,7 @@ function normalizar(d) {
     categorias: mesclarCategorias(d.categorias),
     avulsos: lista(d.avulsos),
     fixos: lista(d.fixos),
+    cartoes: lista(d.cartoes),
     parcelados: lista(d.parcelados),
     dividas: lista(d.dividas),
     pagos: d.pagos && typeof d.pagos === 'object' ? d.pagos : {},
@@ -57,14 +78,24 @@ function normalizar(d) {
   const ok =
     r.avulsos.every((t) => t && t.id && TIPOS.has(t.tipo) && Number.isInteger(t.centavos) && DATA_RE.test(t.data)) &&
     r.fixos.every((f) => f && f.id && TIPOS.has(f.tipo) && Number.isInteger(f.centavos) && MES_RE.test(f.inicio) && Number.isInteger(f.dia)) &&
+    r.cartoes.every((c) => c && c.id && typeof c.nome === 'string' && diaValido(c.fechamento) && diaValido(c.vencimento)) &&
     [...r.parcelados, ...r.dividas].every((p) => p && p.id && Number.isInteger(p.total) && Number.isInteger(p.parcelas) && p.parcelas > 0 && MES_RE.test(p.inicio) && Number.isInteger(p.dia));
   if (!ok) return null;
   for (const f of r.fixos) {
     f.ajustes = f.ajustes && typeof f.ajustes === 'object' ? f.ajustes : {};
     f.pulados = Array.isArray(f.pulados) ? f.pulados : [];
     f.fim = f.fim || null;
+    const meses = Array.isArray(f.meses) ? [...new Set(f.meses.filter((m) => Number.isInteger(m) && m >= 1 && m <= 12))].sort((a, b) => a - b) : [];
+    if (meses.length > 0 && meses.length < 12) f.meses = meses;
+    else delete f.meses;
   }
+  const cartoes = new Set(r.cartoes.map((c) => c.id));
+  for (const p of r.parcelados) if (p.cartao && !cartoes.has(p.cartao)) delete p.cartao;
   return r;
+}
+
+function diaValido(n) {
+  return Number.isInteger(n) && n >= 1 && n <= 31;
 }
 
 function carregar() {
@@ -135,6 +166,15 @@ function dataNoMes(ym, dia) {
   return `${ym}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`;
 }
 
+function somarDias(iso, n) {
+  const d = new Date(paraData(iso).getTime() + n * DIA_MS);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function difDias(de, ate) {
+  return Math.round((paraData(ate) - paraData(de)) / DIA_MS);
+}
+
 function maiuscula(texto) {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
@@ -182,7 +222,52 @@ function valorParcela(total, n, i) {
 // ---------- Regras ----------
 
 function fixoNoMes(f, ym) {
-  return ym >= f.inicio && (!f.fim || ym <= f.fim) && !f.pulados.includes(ym);
+  return ym >= f.inicio && (!f.fim || ym <= f.fim) && !f.pulados.includes(ym) && (!f.meses || f.meses.includes(Number(ym.slice(5))));
+}
+
+// "fev a nov", "jun e dez", "jan, mar e jul"
+function descreverMeses(meses) {
+  const seguidos = meses.every((m, i) => i === 0 || m === meses[i - 1] + 1);
+  if (seguidos && meses.length > 2) return `${MESES[meses[0] - 1]} a ${MESES[meses.at(-1) - 1]}`;
+  const nomes = meses.map((m) => MESES[m - 1]);
+  return nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)}` : nomes[0];
+}
+
+function cartaoDe(id) {
+  return id ? dados.cartoes.find((c) => c.id === id) || null : null;
+}
+
+// Mês da fatura em que cai uma compra: compras a partir do dia do fechamento vão para a fatura seguinte.
+function mesDaFatura(cartao, dataCompra) {
+  const mes = dataCompra.slice(0, 7);
+  const fecha = Number(dataCompra.slice(8)) >= cartao.fechamento ? addMeses(mes, 1) : mes;
+  return cartao.vencimento > cartao.fechamento ? fecha : addMeses(fecha, 1);
+}
+
+// Troca os dados de um parcelado mantendo marcadas como pagas as mesmas parcelas (pela ordem).
+function atualizarParcelado(p, campos) {
+  const pagas = new Set(parcelasDe(p, 'p').filter((x) => x.pago).map((x) => x.i));
+  limparPagos('p', p.id);
+  Object.assign(p, campos);
+  for (const x of parcelasDe(p, 'p')) if (pagas.has(x.i)) dados.pagos[x.chave] = true;
+}
+
+// Recalcula as parcelas das compras de um cartão depois de mudar o fechamento ou o vencimento.
+function reposicionarCompras(cartao) {
+  for (const p of dados.parcelados) {
+    if (p.cartao !== cartao.id || !p.compra) continue;
+    atualizarParcelado(p, { inicio: mesDaFatura(cartao, p.compra), dia: cartao.vencimento });
+  }
+}
+
+function sugerirCategoria(descricao, tipo) {
+  const anterior = [...dados.avulsos, ...dados.fixos, ...dados.parcelados]
+    .find((x) => (x.tipo || 'despesa') === tipo && x.descricao.toLowerCase() === descricao.trim().toLowerCase());
+  if (anterior) return anterior.categoria;
+  for (const [re, categoria] of PALAVRAS_CATEGORIA) {
+    if (re.test(descricao) && dados.categorias[tipo].includes(categoria)) return categoria;
+  }
+  return null;
 }
 
 function valorFixo(f, ym) {
@@ -225,11 +310,48 @@ function ocorrencias(ym) {
         fonte, ref: item, tipo: 'despesa', descricao: item.descricao,
         categoria: fonte === 'divida' ? CATEGORIA_DIVIDA : item.categoria,
         centavos: p.centavos, data: p.data, chave: p.chave, pago: p.pago,
+        cartao: fonte === 'parcelado' ? cartaoDe(item.cartao) : null,
         etiqueta: item.parcelas > 1 ? `${nome} ${k + 1}/${item.parcelas}` : nome,
       });
     }
   }
   return lista.sort((a, b) => a.data.localeCompare(b.data) || a.descricao.localeCompare(b.descricao));
+}
+
+// Junta as parcelas de cada cartão numa linha só: a fatura do mês.
+function agruparFaturas(itens) {
+  const faturas = new Map();
+  const r = [];
+  for (const t of itens) {
+    if (!t.cartao) {
+      r.push(t);
+      continue;
+    }
+    let f = faturas.get(t.cartao.id);
+    if (!f) {
+      f = {
+        fonte: 'fatura', ref: t.cartao, tipo: 'despesa', descricao: `Fatura ${t.cartao.nome}`, categoria: 'Cartão de crédito',
+        centavos: 0, data: dataNoMes(t.data.slice(0, 7), t.cartao.vencimento), chaves: [], itens: [], pago: true,
+      };
+      faturas.set(t.cartao.id, f);
+      r.push(f);
+    }
+    f.centavos += t.centavos;
+    f.chaves.push(t.chave);
+    f.itens.push(t);
+    f.pago &&= t.pago;
+  }
+  for (const f of faturas.values()) f.etiqueta = f.itens.length === 1 ? '1 compra' : `${f.itens.length} compras`;
+  return r.sort((a, b) => a.data.localeCompare(b.data) || a.descricao.localeCompare(b.descricao));
+}
+
+function marcarPago(t, pago) {
+  for (const chave of t.chaves || [t.chave]) {
+    if (pago) dados.pagos[chave] = true;
+    else delete dados.pagos[chave];
+  }
+  salvar();
+  render();
 }
 
 function resumoDivida(d) {
@@ -281,6 +403,7 @@ function render() {
   for (const b of document.querySelectorAll('.abas button')) b.classList.toggle('ativa', b.dataset.aba === abaAtual);
   for (const s of document.querySelectorAll('.aba')) s.hidden = s.id !== `aba-${abaAtual}`;
   renderMes();
+  renderFuturo();
   renderFixos();
   renderParcelados();
   renderDividas();
@@ -304,6 +427,7 @@ function renderMes() {
   $('#falta-pagar').textContent = formatar(falta);
   $('#falta-pagar').className = 'valor' + (falta > 0 ? ' despesa' : '');
 
+  renderParaPagar();
   renderLista(itens);
   renderCategorias(itens, despesas);
 }
@@ -315,44 +439,91 @@ function renderLista(itens) {
 
   let diaAtual = null;
   let grupo = null;
-  for (const t of itens) {
+  for (const t of agruparFaturas(itens)) {
     if (t.data !== diaAtual) {
       diaAtual = t.data;
       grupo = elemento('div', 'dia');
       grupo.append(elemento('p', 'dia-titulo', formatoDia.format(paraData(t.data))));
       lista.append(grupo);
     }
+    grupo.append(...linhaOcorrencia(t));
+  }
+}
 
-    const linha = elemento('div', 'linha' + (t.pago ? ' paga' : ''));
+// Linha de um lançamento (e, para faturas, a lista de compras que abre ao tocar). `quando` troca o detalhe.
+function linhaOcorrencia(t, quando) {
+  const linha = elemento('div', 'linha' + (t.pago ? ' paga' : ''));
 
-    // Fixos, parcelas e dívidas têm a marcação de pago/recebido; avulsos já aconteceram.
-    const marcar = elemento('span', 'marcar');
-    if (t.chave) {
-      const caixa = elemento('input');
-      caixa.type = 'checkbox';
-      caixa.checked = t.pago;
-      caixa.setAttribute('aria-label', `${t.tipo === 'receita' ? 'Recebido' : 'Pago'}: ${t.descricao}`);
-      caixa.addEventListener('change', () => {
-        if (caixa.checked) dados.pagos[t.chave] = true;
-        else delete dados.pagos[t.chave];
-        salvar();
-        render();
-      });
-      marcar.append(caixa);
-    }
+  // Fixos, parcelas, faturas e dívidas têm a marcação de pago/recebido; avulsos já aconteceram.
+  const marcar = elemento('span', 'marcar');
+  if (t.chave || t.chaves) {
+    const caixa = elemento('input');
+    caixa.type = 'checkbox';
+    caixa.checked = t.pago;
+    caixa.setAttribute('aria-label', `${t.tipo === 'receita' ? 'Recebido' : 'Pago'}: ${t.descricao}`);
+    caixa.addEventListener('change', () => marcarPago(t, caixa.checked));
+    marcar.append(caixa);
+  }
 
-    const info = elemento('div', 'info');
-    info.append(elemento('span', 'descricao', t.descricao));
-    const detalhe = elemento('span', 'detalhe', t.categoria);
-    if (t.etiqueta) detalhe.append(' · ', elemento('span', 'etiqueta', t.etiqueta));
-    if (t.pago) detalhe.append(' · ', elemento('span', 'ok', t.tipo === 'receita' ? 'recebido' : 'pago'));
-    info.append(detalhe);
+  const info = elemento('div', 'info');
+  info.append(elemento('span', 'descricao', t.descricao));
+  const detalhe = elemento('span', 'detalhe');
+  if (quando) detalhe.append(quando);
+  else detalhe.append(t.categoria);
+  if (t.etiqueta) detalhe.append(' · ', elemento('span', 'etiqueta', t.etiqueta));
+  if (t.pago && !quando) detalhe.append(' · ', elemento('span', 'ok', t.tipo === 'receita' ? 'recebido' : 'pago'));
+  info.append(detalhe);
 
-    const quantia = elemento('span', 'quantia ' + t.tipo, (t.tipo === 'despesa' ? '− ' : '+ ') + formatar(t.centavos));
-    const editar = botao('Editar', 'btn-mini', () => editarOcorrencia(t));
+  const quantia = elemento('span', 'quantia ' + t.tipo, (t.tipo === 'despesa' ? '− ' : '+ ') + formatar(t.centavos));
+  if (t.fonte !== 'fatura') {
+    linha.append(marcar, info, quantia, botao('Editar', 'btn-mini', () => editarOcorrencia(t)));
+    return [linha];
+  }
 
-    linha.append(marcar, info, quantia, editar);
-    grupo.append(linha);
+  const compras = elemento('div', 'compras');
+  compras.hidden = true;
+  for (const c of t.itens) {
+    const l = elemento('div', 'linha');
+    const i = elemento('div', 'info');
+    i.append(elemento('span', 'descricao', c.descricao), elemento('span', 'detalhe', `${c.categoria} · ${c.etiqueta}`));
+    l.append(i, elemento('span', 'quantia despesa', formatar(c.centavos)), botao('Editar', 'btn-mini', () => abrirParcelado(c.ref)));
+    compras.append(l);
+  }
+  const ver = botao('Ver', 'btn-mini', () => {
+    compras.hidden = !compras.hidden;
+    ver.textContent = compras.hidden ? 'Ver' : 'Fechar';
+  });
+  ver.setAttribute('aria-expanded', 'false');
+  linha.append(marcar, info, quantia, ver);
+  return [linha, compras];
+}
+
+// Contas não pagas que venceram há pouco ou vencem nos próximos 7 dias.
+function renderParaPagar() {
+  const painel = $('#para-pagar');
+  const hoje = hojeISO();
+  const de = somarDias(hoje, -20);
+  const ate = somarDias(hoje, 7);
+  const meses = [...new Set([de.slice(0, 7), hoje.slice(0, 7), ate.slice(0, 7)])];
+  const itens = meses
+    .flatMap((m) => agruparFaturas(ocorrencias(m)))
+    .filter((t) => t.tipo === 'despesa' && (t.chave || t.chaves) && !t.pago && t.data >= de && t.data <= ate);
+
+  painel.hidden = itens.length === 0 || mesAtual !== mesHoje();
+  if (painel.hidden) return;
+  const lista = $('#lista-para-pagar');
+  lista.replaceChildren();
+  const atrasadas = itens.filter((t) => t.data < hoje).length;
+  $('#para-pagar-titulo').textContent = atrasadas
+    ? `Para pagar · ${atrasadas} atrasada${atrasadas > 1 ? 's' : ''}`
+    : 'Para pagar nos próximos dias';
+  for (const t of itens) {
+    const dias = difDias(hoje, t.data);
+    const quando = dias < 0
+      ? elemento('span', 'alerta', `atrasada desde ${dataCurta(t.data).slice(0, 5)}`)
+      : dias === 0 ? elemento('span', 'alerta', 'vence hoje')
+      : dias === 1 ? 'vence amanhã' : `vence em ${dias} dias (${dataCurta(t.data).slice(0, 5)})`;
+    lista.append(...linhaOcorrencia(t, quando));
   }
 }
 
@@ -382,6 +553,99 @@ function renderCategorias(itens, totalDespesas) {
     caixa.append(item);
   }
 }
+
+// ----- Aba Futuro -----
+
+let mesesFuturo = 12;
+
+function renderFuturo() {
+  const hoje = mesHoje();
+  const meses = Array.from({ length: mesesFuturo }, (_, i) => {
+    const ym = addMeses(hoje, i);
+    const itens = ocorrencias(ym);
+    const entra = itens.filter((t) => t.tipo === 'receita').reduce((s, t) => s + t.centavos, 0);
+    const sai = itens.filter((t) => t.tipo === 'despesa').reduce((s, t) => s + t.centavos, 0);
+    // O que é diferente neste mês: contas que não são de todo mês e o que termina nele.
+    const marcas = [];
+    for (const f of dados.fixos) if (f.meses && fixoNoMes(f, ym)) marcas.push({ texto: f.descricao, classe: f.tipo });
+    for (const t of itens) {
+      if ((t.fonte === 'parcelado' || t.fonte === 'divida') && addMeses(t.ref.inicio, t.ref.parcelas - 1) === ym && t.ref.parcelas > 1) {
+        marcas.push({ texto: `última: ${t.ref.descricao}`, classe: 'fim' });
+      }
+    }
+    return { ym, entra, sai, sobra: entra - sai, marcas };
+  });
+
+  const acumulado = meses.reduce((s, m) => s + m.sobra, 0);
+  $('#ft-sobra-hoje').textContent = formatar(meses[0].sobra);
+  corDoSaldo($('#ft-sobra-hoje'), meses[0].sobra);
+  $('#ft-rotulo-fim').textContent = `Sobra em ${nomeMesCurto(meses.at(-1).ym)}`;
+  $('#ft-sobra-fim').textContent = formatar(meses.at(-1).sobra);
+  corDoSaldo($('#ft-sobra-fim'), meses.at(-1).sobra);
+  $('#ft-rotulo-acumulado').textContent = `Juntando tudo em ${mesesFuturo} meses`;
+  $('#ft-acumulado').textContent = formatar(acumulado);
+  corDoSaldo($('#ft-acumulado'), acumulado);
+
+  const caixa = $('#ft-meses');
+  caixa.replaceChildren();
+  const maior = Math.max(1, ...meses.map((m) => Math.abs(m.sobra)));
+  let guardado = 0;
+  for (const m of meses) {
+    guardado += m.sobra;
+    const linha = elemento('button', 'mes-futuro');
+    linha.type = 'button';
+    linha.addEventListener('click', () => irParaMes(m.ym));
+    const topo = elemento('div', 'cat-linha');
+    topo.append(elemento('strong', '', nomeMesCurto(m.ym)), elemento('strong', m.sobra < 0 ? 'despesa' : 'receita', formatar(m.sobra)));
+    linha.append(topo, barra(Math.abs(m.sobra) / maior, m.sobra < 0 ? 'cheio-despesa' : 'cheio-receita'));
+    linha.append(elemento('span', 'detalhe', `entra ${formatar(m.entra)} · sai ${formatar(m.sai)} · juntando: ${formatar(guardado)}`));
+    if (m.marcas.length) {
+      const chips = elemento('div', 'chips');
+      for (const c of m.marcas) chips.append(elemento('span', 'chip ' + c.classe, c.texto));
+      linha.append(chips);
+    }
+    caixa.append(linha);
+  }
+  $('#ft-mais').textContent = mesesFuturo === 12 ? 'Ver 24 meses' : 'Ver só 12 meses';
+
+  // Quando cada compra, dívida ou conta termina, e quanto passa a sobrar por mês a partir daí.
+  const folgas = [];
+  for (const [itens, prefixo, nome] of [[dados.parcelados, 'p', 'Compra'], [dados.dividas, 'd', 'Dívida']]) {
+    for (const item of itens) {
+      const fim = addMeses(item.inicio, item.parcelas - 1);
+      if (fim < hoje) continue;
+      const cartao = prefixo === 'p' ? cartaoDe(item.cartao) : null;
+      folgas.push({ mes: addMeses(fim, 1), descricao: item.descricao, centavos: valorParcela(item.total, item.parcelas, item.parcelas - 1), tipo: cartao ? `cartão ${cartao.nome}` : nome });
+    }
+  }
+  for (const f of dados.fixos) {
+    if (f.tipo === 'despesa' && f.fim && f.fim >= hoje) folgas.push({ mes: addMeses(f.fim, 1), descricao: f.descricao, centavos: f.centavos, tipo: 'Fixo' });
+  }
+  folgas.sort((a, b) => a.mes.localeCompare(b.mes));
+
+  const lista = $('#ft-folgas');
+  lista.replaceChildren();
+  if (folgas.length === 0) return vazio(lista, 'Nenhuma compra parcelada ou dívida terminando.');
+  let somaFolga = 0;
+  for (const f of folgas) {
+    somaFolga += f.centavos;
+    const item = elemento('div', 'cat');
+    const topo = elemento('div', 'cat-linha');
+    topo.append(elemento('span', '', `${nomeMesCurto(f.mes)} · ${f.descricao}`), elemento('span', 'receita', `+${formatar(f.centavos)}`));
+    item.append(topo, elemento('span', 'detalhe', `${maiuscula(f.tipo)} · a partir daí, +${formatar(somaFolga)} por mês no total`));
+    lista.append(item);
+  }
+}
+
+function irParaMes(ym) {
+  mesAtual = ym;
+  trocarAba('mes');
+}
+
+$('#ft-mais').addEventListener('click', () => {
+  mesesFuturo = mesesFuturo === 12 ? 24 : 12;
+  renderFuturo();
+});
 
 // ----- Aba Fixos -----
 
@@ -413,7 +677,7 @@ function renderFixos() {
       const linha = elemento('div', 'linha' + (encerrado ? ' paga' : ''));
       const info = elemento('div', 'info');
       info.append(elemento('span', 'descricao', f.descricao));
-      let texto = `${f.categoria} · todo dia ${f.dia} · desde ${nomeMesCurto(f.inicio)}`;
+      let texto = `${f.categoria} · ${f.meses ? `dia ${f.dia} em ${descreverMeses(f.meses)}` : `todo dia ${f.dia}`} · desde ${nomeMesCurto(f.inicio)}`;
       if (f.fim) texto += encerrado ? ` · encerrado em ${nomeMesCurto(f.fim)}` : ` · até ${nomeMesCurto(f.fim)}`;
       info.append(elemento('span', 'detalhe', texto));
       linha.append(info, elemento('span', 'quantia ' + tipo, formatar(f.centavos)), botao('Editar', 'btn-mini', () => abrirFixo(f)));
@@ -422,45 +686,83 @@ function renderFixos() {
   }
 }
 
-// ----- Aba Parcelados -----
+// ----- Aba Cartões (compras parceladas) -----
 
 function renderParcelados() {
   const hoje = mesHoje();
   let doMes = 0;
   let restante = 0;
   let ultimo = null;
-  const caixa = $('#lista-parcelados');
+  const caixa = $('#lista-cartoes');
   caixa.replaceChildren();
 
-  const itens = dados.parcelados.map((p) => ({ p, fim: addMeses(p.inicio, p.parcelas - 1) }));
-  itens.sort((a, b) => Number(a.fim < hoje) - Number(b.fim < hoje) || a.fim.localeCompare(b.fim));
-  if (itens.length === 0) vazio(caixa, 'Nenhuma compra parcelada. Toque em + para adicionar.');
+  const grupos = [...dados.cartoes.map((c) => ({ cartao: c, compras: [] })), { cartao: null, compras: [] }];
+  for (const p of dados.parcelados) grupos.find((g) => g.cartao?.id === (cartaoDe(p.cartao)?.id))?.compras.push(p);
 
-  for (const { p, fim } of itens) {
-    const parcelas = parcelasDe(p, 'p');
-    const atual = parcelas.find((x) => x.mes === hoje);
-    if (atual) doMes += atual.centavos;
-    const falta = parcelas.filter((x) => x.mes >= hoje && !x.pago).reduce((s, x) => s + x.centavos, 0);
-    restante += falta;
-    if (falta > 0 && (!ultimo || fim > ultimo)) ultimo = fim;
+  for (const { cartao, compras } of grupos) {
+    if (!cartao && compras.length === 0) continue;
+    const painel = elemento('div', 'painel');
+    const cabeca = elemento('div', 'painel-cabeca');
+    const titulo = elemento('div', 'info');
+    titulo.append(elemento('h3', '', cartao ? cartao.nome : 'Sem cartão (carnê, boleto…)'));
+    if (cartao) titulo.append(elemento('span', 'detalhe', `fecha dia ${cartao.fechamento} · vence dia ${cartao.vencimento}`));
+    cabeca.append(titulo);
+    if (cartao) cabeca.append(botao('Editar', 'btn-mini', () => abrirCartao(cartao)));
+    painel.append(cabeca);
 
-    const k = difMeses(p.inicio, hoje) + 1; // parcela que cai neste mês
-    let situacao;
-    if (k < 1) situacao = `começa em ${nomeMesCurto(p.inicio)}`;
-    else if (k > p.parcelas) situacao = `terminou em ${nomeMesCurto(fim)}`;
-    else situacao = `parcela ${k} de ${p.parcelas} neste mês · termina em ${nomeMesCurto(fim)}`;
+    // Próximas faturas deste cartão.
+    if (cartao) {
+      const faturas = elemento('div', 'faturas');
+      for (let i = 0; i < 6; i++) {
+        const ym = addMeses(hoje, i);
+        const valor = ocorrencias(ym).filter((t) => t.cartao?.id === cartao.id).reduce((s, t) => s + t.centavos, 0);
+        const f = elemento('button', 'fatura' + (i === 0 ? ' atual' : ''));
+        f.type = 'button';
+        f.addEventListener('click', () => irParaMes(ym));
+        f.append(elemento('span', 'rotulo', nomeMesCurto(ym)), elemento('strong', '', formatar(valor)));
+        faturas.append(f);
+      }
+      painel.append(faturas);
+    }
 
-    const linha = elemento('div', 'linha' + (k > p.parcelas ? ' paga' : ''));
-    const info = elemento('div', 'info');
-    info.append(
-      elemento('span', 'descricao', p.descricao),
-      elemento('span', 'detalhe', `${p.parcelas}× ${formatar(valorParcela(p.total, p.parcelas, p.parcelas - 1))} · total ${formatar(p.total)} · ${p.categoria}`),
-      elemento('span', 'detalhe', situacao),
-      barra(Math.max(0, Math.min(k, p.parcelas)) / p.parcelas, 'cheio-primaria'),
-    );
-    linha.append(info, botao('Editar', 'btn-mini', () => abrirParcelado(p)));
-    caixa.append(linha);
+    compras.sort((a, b) => {
+      const fa = addMeses(a.inicio, a.parcelas - 1);
+      const fb = addMeses(b.inicio, b.parcelas - 1);
+      return Number(fa < hoje) - Number(fb < hoje) || fa.localeCompare(fb);
+    });
+    if (compras.length === 0) vazio(painel, 'Nenhuma compra neste cartão ainda.');
+    for (const p of compras) {
+      const fim = addMeses(p.inicio, p.parcelas - 1);
+      const parcelas = parcelasDe(p, 'p');
+      const atual = parcelas.find((x) => x.mes === hoje);
+      if (atual) doMes += atual.centavos;
+      const falta = parcelas.filter((x) => x.mes >= hoje && !x.pago).reduce((s, x) => s + x.centavos, 0);
+      restante += falta;
+      if (falta > 0 && (!ultimo || fim > ultimo)) ultimo = fim;
+
+      const k = difMeses(p.inicio, hoje) + 1; // parcela que cai neste mês
+      let situacao;
+      if (k < 1) situacao = `começa em ${nomeMesCurto(p.inicio)}`;
+      else if (k > p.parcelas) situacao = `terminou em ${nomeMesCurto(fim)}`;
+      else if (p.parcelas === 1) situacao = `à vista · ${nomeMesCurto(fim)}`;
+      else situacao = `parcela ${k} de ${p.parcelas} · termina em ${nomeMesCurto(fim)}`;
+
+      const linha = elemento('div', 'linha' + (k > p.parcelas ? ' paga' : ''));
+      const info = elemento('div', 'info');
+      info.append(
+        elemento('span', 'descricao', p.descricao),
+        elemento('span', 'detalhe', `${p.parcelas}× ${formatar(valorParcela(p.total, p.parcelas, p.parcelas - 1))} · total ${formatar(p.total)} · ${p.categoria}`),
+        elemento('span', 'detalhe', situacao),
+        barra(Math.max(0, Math.min(k, p.parcelas)) / p.parcelas, 'cheio-primaria'),
+      );
+      linha.append(info, botao('Editar', 'btn-mini', () => abrirParcelado(p)));
+      painel.append(linha);
+    }
+    caixa.append(painel);
   }
+
+  const novo = botao('+ Adicionar cartão', 'btn btn-secundario', () => abrirCartao(null));
+  caixa.append(novo);
 
   $('#pc-total-mes').textContent = formatar(doMes);
   $('#pc-total-restante').textContent = formatar(restante);
@@ -582,6 +884,9 @@ function dataPadrao() {
 
 function abrir(dialogo, prefixo, editando, tituloNovo, tituloEditar) {
   dialogo.querySelector('form')?.reset();
+  const categoria = $(`#${prefixo}-categoria`);
+  if (categoria) delete categoria.dataset.escolhida;
+  preencherSugestoes();
   mostrarErro(prefixo, '');
   $(`#${prefixo}-titulo`).textContent = editando ? tituloEditar : tituloNovo;
   const excluir = $(`#${prefixo}-excluir`);
@@ -591,6 +896,30 @@ function abrir(dialogo, prefixo, editando, tituloNovo, tituloEditar) {
 
 for (const d of document.querySelectorAll('dialog')) {
   for (const b of d.querySelectorAll('.fechar')) b.addEventListener('click', () => d.close());
+}
+
+// Descrições já usadas aparecem como sugestão ao digitar.
+function preencherSugestoes() {
+  for (const [id, itens] of [['sug-av', dados.avulsos], ['sug-fx', dados.fixos], ['sug-pc', dados.parcelados]]) {
+    const lista = $(`#${id}`);
+    lista.replaceChildren(...[...new Set(itens.map((x) => x.descricao))].sort().map((d) => {
+      const op = elemento('option');
+      op.value = d;
+      return op;
+    }));
+  }
+}
+
+// Ao digitar a descrição, escolhe a categoria sozinho (até a pessoa escolher outra).
+for (const prefixo of ['av', 'fx', 'pc']) {
+  const select = $(`#${prefixo}-categoria`);
+  select.addEventListener('change', () => (select.dataset.escolhida = '1'));
+  $(`#${prefixo}-descricao`).addEventListener('input', (e) => {
+    if (select.dataset.escolhida) return;
+    const tipo = prefixo === 'pc' ? 'despesa' : radio(`${prefixo}-tipo`);
+    const sugestao = sugerirCategoria(e.target.value, tipo);
+    if (sugestao) select.value = sugestao;
+  });
 }
 
 // ----- Avulso -----
@@ -610,7 +939,8 @@ function abrirAvulso(t, tipo = 'despesa') {
 }
 
 dlgAvulso.addEventListener('change', (e) => {
-  if (e.target.name === 'av-tipo') preencherCategorias($('#av-categoria'), e.target.value);
+  if (e.target.name !== 'av-tipo') return;
+  preencherCategorias($('#av-categoria'), e.target.value, sugerirCategoria($('#av-descricao').value, e.target.value));
 });
 
 dlgAvulso.querySelector('form').addEventListener('submit', (e) => {
@@ -647,7 +977,9 @@ let fixoEditando = null;
 
 function abrirFixo(f) {
   fixoEditando = f;
-  abrir(dlgFixo, 'fx', f, 'Novo fixo mensal', 'Editar fixo mensal');
+  abrir(dlgFixo, 'fx', f, 'Nova conta fixa', 'Editar conta fixa');
+  mesesFixo = f?.meses ? [...f.meses] : MESES.map((_, j) => j + 1);
+  desenharMeses();
   marcarRadio('fx-tipo', f ? f.tipo : 'despesa');
   preencherCategorias($('#fx-categoria'), f ? f.tipo : 'despesa', f?.categoria);
   $('#fx-descricao').value = f ? f.descricao : '';
@@ -664,8 +996,36 @@ function abrirFixo(f) {
 }
 
 dlgFixo.addEventListener('change', (e) => {
-  if (e.target.name === 'fx-tipo') preencherCategorias($('#fx-categoria'), e.target.value);
+  if (e.target.name !== 'fx-tipo') return;
+  preencherCategorias($('#fx-categoria'), e.target.value, sugerirCategoria($('#fx-descricao').value, e.target.value));
 });
+
+// Meses em que o fixo acontece: todos ligados = todo mês.
+let mesesFixo = [];
+
+function desenharMeses() {
+  const caixa = $('#fx-meses');
+  caixa.replaceChildren();
+  MESES.forEach((nome, i) => {
+    const b = botao(nome, 'mes-chip', () => {
+      const m = i + 1;
+      // Com todos ligados, o primeiro toque escolhe só aquele mês.
+      if (mesesFixo.length === 12) mesesFixo = [m];
+      else if (mesesFixo.includes(m)) mesesFixo = mesesFixo.filter((x) => x !== m);
+      else mesesFixo = [...mesesFixo, m].sort((a, b) => a - b);
+      if (mesesFixo.length === 0) mesesFixo = MESES.map((_, j) => j + 1);
+      desenharMeses();
+    });
+    b.setAttribute('aria-pressed', String(mesesFixo.includes(i + 1)));
+    caixa.append(b);
+  });
+  const todos = mesesFixo.length === 12;
+  $('#fx-repete').textContent = todos ? '· todo mês' : `· ${descreverMeses(mesesFixo)}`;
+  if (!todos) caixa.append(botao('todo mês', 'mes-chip limpar', () => {
+    mesesFixo = MESES.map((_, j) => j + 1);
+    desenharMeses();
+  }));
+}
 
 dlgFixo.querySelector('form').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -682,6 +1042,8 @@ dlgFixo.querySelector('form').addEventListener('submit', (e) => {
 
   const campos = { tipo: radio('fx-tipo'), descricao, centavos, categoria: $('#fx-categoria').value, dia: Number(inicioData.slice(8)), inicio, fim };
   const f = fixoEditando;
+  if (f) delete f.meses;
+  if (mesesFixo.length < 12) campos.meses = [...mesesFixo];
   if (f) {
     // Novo valor vale a partir do mês exibido: guarda o valor antigo nos meses anteriores.
     if (centavos !== f.centavos) {
@@ -769,6 +1131,15 @@ function atualizarPrevia(prefixo) {
     el.textContent = '';
     return;
   }
+  const cartao = prefixo === 'pc' ? cartaoDe($('#pc-cartao').value) : null;
+  if (cartao) {
+    const inicio = mesDaFatura(cartao, data);
+    const venc = dataCurta(dataNoMes(inicio, cartao.vencimento)).slice(0, 5);
+    el.textContent = r.n === 1
+      ? `${formatar(r.total)} na fatura de ${nomeMesCurto(inicio)} (vence ${venc})`
+      : `${r.n}× de ${formatar(valorParcela(r.total, r.n, 0))} = ${formatar(r.total)} · faturas de ${nomeMesCurto(inicio)} a ${nomeMesCurto(addMeses(inicio, r.n - 1))}`;
+    return;
+  }
   const inicio = data.slice(0, 7);
   el.textContent = r.n === 1
     ? `Pagamento único de ${formatar(r.total)} em ${dataCurta(data)}.`
@@ -794,34 +1165,72 @@ for (const prefixo of ['pc', 'dv']) {
 const dlgParcelado = $('#dlg-parcelado');
 let parceladoEditando = null;
 
+function preencherCartoes(selecionado) {
+  const select = $('#pc-cartao');
+  select.replaceChildren();
+  for (const c of dados.cartoes) select.append(new Option(c.nome, c.id));
+  select.append(new Option('Sem cartão (carnê, boleto…)', ''), new Option('+ Novo cartão…', 'novo'));
+  select.value = selecionado ?? '';
+  select.dataset.anterior = select.value;
+  ajustarFormCompra();
+}
+
+function ajustarFormCompra() {
+  $('#pc-rotulo-data').textContent = $('#pc-cartao').value ? 'Data da compra' : 'Data da primeira parcela';
+}
+
 function abrirParcelado(p) {
   parceladoEditando = p;
-  abrir(dlgParcelado, 'pc', p, 'Nova compra parcelada', 'Editar compra parcelada');
+  abrir(dlgParcelado, 'pc', p, 'Nova compra', 'Editar compra');
   $('#pc-descricao').value = p ? p.descricao : '';
   preencherCategorias($('#pc-categoria'), 'despesa', p ? p.categoria : 'Compras');
   preencherParcelamento('pc', p);
+  // Compra nova: sugere o último cartão usado e pagamento à vista.
+  const ultimo = [...dados.parcelados].reverse().find((x) => cartaoDe(x.cartao));
+  preencherCartoes(p ? cartaoDe(p.cartao)?.id || '' : (ultimo?.cartao || dados.cartoes[0]?.id || ''));
+  if (p?.compra && cartaoDe(p.cartao)) $('#pc-inicio').value = p.compra;
+  if (!p && $('#pc-cartao').value) $('#pc-parcelas').value = 1;
   atualizarPrevia('pc');
   $('#pc-descricao').focus();
 }
+
+$('#pc-cartao').addEventListener('change', (e) => {
+  const select = e.target;
+  if (select.value === 'novo') {
+    select.value = select.dataset.anterior;
+    abrirCartao(null, (c) => {
+      preencherCartoes(c.id);
+      atualizarPrevia('pc');
+    });
+    return;
+  }
+  select.dataset.anterior = select.value;
+  ajustarFormCompra();
+});
 
 dlgParcelado.querySelector('form').addEventListener('submit', (e) => {
   e.preventDefault();
   const descricao = $('#pc-descricao').value.trim();
   const data = $('#pc-inicio').value;
+  const cartao = cartaoDe($('#pc-cartao').value);
   if (!descricao) return mostrarErro('pc', 'Informe uma descrição.');
   const r = lerParcelamento('pc');
   if (r.erro) return mostrarErro('pc', r.erro);
-  if (!data) return mostrarErro('pc', 'Informe a data da primeira parcela.');
+  if (!data) return mostrarErro('pc', cartao ? 'Informe a data da compra.' : 'Informe a data da primeira parcela.');
 
-  const campos = { descricao, categoria: $('#pc-categoria').value, total: r.total, parcelas: r.n, inicio: data.slice(0, 7), dia: Number(data.slice(8)) };
+  const campos = cartao
+    ? { cartao: cartao.id, compra: data, inicio: mesDaFatura(cartao, data), dia: cartao.vencimento }
+    : { cartao: undefined, compra: undefined, inicio: data.slice(0, 7), dia: Number(data.slice(8)) };
+  Object.assign(campos, { descricao, categoria: $('#pc-categoria').value, total: r.total, parcelas: r.n });
   const p = parceladoEditando;
   if (p) {
-    const pagos = new Set(parcelasDe(p, 'p').filter((x) => x.pago).map((x) => x.mes));
-    limparPagos('p', p.id);
-    Object.assign(p, campos);
-    for (const x of parcelasDe(p, 'p')) if (pagos.has(x.mes)) dados.pagos[x.chave] = true;
+    atualizarParcelado(p, campos);
+    if (!cartao) {
+      delete p.cartao;
+      delete p.compra;
+    }
   } else {
-    dados.parcelados.push({ id: novoId(), ...campos });
+    dados.parcelados.push(JSON.parse(JSON.stringify({ id: novoId(), ...campos })));
   }
   salvar();
   dlgParcelado.close();
@@ -835,6 +1244,83 @@ $('#pc-excluir').addEventListener('click', () => {
   limparPagos('p', p.id);
   salvar();
   dlgParcelado.close();
+  render();
+});
+
+// ----- Cartão -----
+
+const dlgCartao = $('#dlg-cartao');
+let cartaoEditando = null;
+let aoSalvarCartao = null;
+
+function abrirCartao(c, aoSalvar = null) {
+  cartaoEditando = c;
+  aoSalvarCartao = aoSalvar;
+  abrir(dlgCartao, 'ct', c, 'Novo cartão', 'Editar cartão');
+  $('#ct-nome').value = c ? c.nome : '';
+  $('#ct-vencimento').value = c ? c.vencimento : '';
+  $('#ct-fechamento').value = c ? c.fechamento : '';
+  $('#ct-fechamento').dataset.escolhido = c ? '1' : '';
+  previaCartao();
+  $('#ct-nome').focus();
+}
+
+function previaCartao() {
+  const venc = Number($('#ct-vencimento').value);
+  const fecha = Number($('#ct-fechamento').value);
+  $('#ct-previa').textContent = diaValido(venc) && diaValido(fecha)
+    ? `Compras a partir do dia ${fecha} já ficam para a fatura seguinte: é o melhor dia para comprar.`
+    : '';
+}
+
+// Quase todo cartão fecha uns 7 dias antes do vencimento: sugere isso até a pessoa mudar.
+$('#ct-vencimento').addEventListener('input', () => {
+  const venc = Number($('#ct-vencimento').value);
+  if (!$('#ct-fechamento').dataset.escolhido && diaValido(venc)) $('#ct-fechamento').value = venc > 7 ? venc - 7 : venc + 23;
+  previaCartao();
+});
+$('#ct-fechamento').addEventListener('input', () => {
+  $('#ct-fechamento').dataset.escolhido = '1';
+  previaCartao();
+});
+
+dlgCartao.querySelector('form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const nome = $('#ct-nome').value.trim();
+  const vencimento = Number($('#ct-vencimento').value);
+  const fechamento = Number($('#ct-fechamento').value);
+  if (!nome) return mostrarErro('ct', 'Dê um nome ao cartão.');
+  if (!diaValido(vencimento)) return mostrarErro('ct', 'Dia do vencimento deve ser de 1 a 31.');
+  if (!diaValido(fechamento)) return mostrarErro('ct', 'Dia do fechamento deve ser de 1 a 31.');
+  if (fechamento === vencimento) return mostrarErro('ct', 'O fechamento e o vencimento não podem ser no mesmo dia.');
+
+  let c = cartaoEditando;
+  if (c) {
+    const mudou = c.vencimento !== vencimento || c.fechamento !== fechamento;
+    Object.assign(c, { nome, vencimento, fechamento });
+    if (mudou) reposicionarCompras(c);
+  } else {
+    c = { id: novoId(), nome, vencimento, fechamento };
+    dados.cartoes.push(c);
+  }
+  salvar();
+  dlgCartao.close();
+  render();
+  aoSalvarCartao?.(c);
+});
+
+$('#ct-excluir').addEventListener('click', () => {
+  const c = cartaoEditando;
+  const compras = dados.parcelados.filter((p) => p.cartao === c.id);
+  const aviso = compras.length ? `\n\nAs ${compras.length} compra(s) dele continuam, como "sem cartão".` : '';
+  if (!confirm(`Excluir o cartão "${c.nome}"?${aviso}`)) return;
+  for (const p of compras) {
+    delete p.cartao;
+    delete p.compra;
+  }
+  dados.cartoes = dados.cartoes.filter((x) => x !== c);
+  salvar();
+  dlgCartao.close();
   render();
 });
 
@@ -988,16 +1474,16 @@ $('#btn-csv').addEventListener('click', () => {
 
 // ---------- Navegação e instalação ----------
 
-for (const b of document.querySelectorAll('.abas button')) {
-  b.addEventListener('click', () => {
-    abaAtual = b.dataset.aba;
-    try {
-      localStorage.setItem(CHAVE_ABA, abaAtual);
-    } catch {}
-    render();
-    window.scrollTo(0, 0);
-  });
+function trocarAba(aba) {
+  abaAtual = aba;
+  try {
+    localStorage.setItem(CHAVE_ABA, abaAtual);
+  } catch {}
+  render();
+  window.scrollTo(0, 0);
 }
+
+for (const b of document.querySelectorAll('.abas button')) b.addEventListener('click', () => trocarAba(b.dataset.aba));
 
 $('#mes-anterior').addEventListener('click', () => {
   mesAtual = addMeses(mesAtual, -1);
@@ -1052,5 +1538,5 @@ window.financas = {
   aoSalvar: null, // definido por nuvem.js quando há login
 };
 
-if (!['mes', 'fixos', 'parcelados', 'dividas'].includes(abaAtual)) abaAtual = 'mes';
+if (!['mes', 'futuro', 'fixos', 'parcelados', 'dividas'].includes(abaAtual)) abaAtual = 'mes';
 render();

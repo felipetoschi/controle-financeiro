@@ -77,7 +77,7 @@ function mostrar(usuario, texto, classe = '') {
 // Junta os dados da conta com os do aparelho, sem duplicar o que já existe nos dois.
 function juntar(conta, aparelho) {
   const r = structuredClone(conta);
-  for (const lista of ['avulsos', 'fixos', 'parcelados', 'dividas']) {
+  for (const lista of ['avulsos', 'fixos', 'cartoes', 'parcelados', 'dividas']) {
     const ids = new Set(r[lista].map((x) => x.id));
     for (const item of aparelho[lista]) if (!ids.has(item.id)) r[lista].push(item);
   }
