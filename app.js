@@ -1,5 +1,9 @@
 'use strict';
 
+// Versão mostrada no topo do app. A cada mudança: aumente o número, atualize a data/hora (horário de Brasília)
+// e use o mesmo número em CACHE no sw.js.
+const VERSAO = { numero: 5, data: '23/10/2026 16:41' };
+
 // Chaves onde os dados ficam guardados no navegador (localStorage).
 const CHAVE = 'controle-financeiro:v2';
 const CHAVE_V1 = 'controle-financeiro:v1';
@@ -1537,6 +1541,8 @@ window.financas = {
   },
   aoSalvar: null, // definido por nuvem.js quando há login
 };
+
+$('#versao').textContent = `Versão ${VERSAO.numero} · ${VERSAO.data}`;
 
 if (!['mes', 'futuro', 'fixos', 'parcelados', 'dividas'].includes(abaAtual)) abaAtual = 'mes';
 render();
